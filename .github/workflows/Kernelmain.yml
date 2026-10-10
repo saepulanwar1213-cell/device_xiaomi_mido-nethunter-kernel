@@ -1,4 +1,4 @@
-name: Build mido nethunter 4.9 v4
+name: Build mido v5 fix
 on: [workflow_dispatch]
 jobs:
   build:
@@ -10,41 +10,39 @@ jobs:
     - name: Deps
       run: |
         rm -rf builder .git/modules 2>/dev/null; rm -f .gitmodules || true
-        sudo apt update && sudo apt install -y bc bison flex libssl-dev libelf-dev build-essential python-is-python3
+        sudo apt update
+        sudo apt install -y bc bison flex libssl-dev libelf-dev build-essential python3
     - name: Clang
       run: |
-        mkdir clang && cd clang
+        mkdir clang
+        cd clang
         curl -L -o c.tar.gz https://github.com/ZyCromerZ/Clang/releases/download/16.0.6-20260807-release/Clang-16.0.6-20260807.tar.gz
         tar -xzf c.tar.gz
         echo "$PWD/bin" >> $GITHUB_PATH
-    - name: Build kernel
+        cd ..
+    - name: Build
       run: |
         export ARCH=arm64
         export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
-        DEF=$(ls arch/arm64/configs/*mido* | head -n1 | xargs basename)
-        echo "DEF=$DEF"
-        make $DEF
+        ls arch/arm64/configs/ | grep mido
+        DEF=$(ls arch/arm64/configs/ | grep mido | head -n1)
+        echo "Using $DEF"
+        make ${DEF}
         make -j$(nproc) Image.gz dtbs || make -j$(nproc) Image.gz-dtb
         ls -lh arch/arm64/boot/
-    - name: Make REAL flashable zip
+    - name: Pack
       run: |
-        git clone https://github.com/osm0sis/AnyKernel3.git AnyKernel3 --depth=1
-        # cari image yang bener
+        git clone https://github.com/osm0sis/AnyKernel3.git AK3 --depth=1
         KIMG=$(find arch/arm64/boot -name "Image.gz*" | head -n1)
-        echo "Found $KIMG"
-        ls -lh $KIMG
-        cp $KIMG AnyKernel3/
-        # kalau Image.gz-dtb, rename jadi Image.gz
-        cd AnyKernel3
+        echo "KIMG $KIMG"
+        cp $KIMG AK3/
+        cd AK3
         if [ -f Image.gz-dtb ]; then mv Image.gz-dtb Image.gz; fi
-        if [ -f Image.gz-dtb ]; then mv Image.gz-dtb Image.gz; fi
-        # rename biar OrangeFox kenal
-        ls -lh
-        zip -r9 ../mido-nethunter-4.9-LOS21-FLASHABLE.zip * -x .git/*
+        sed -i 's/do.devicecheck=1/do.devicecheck=0/' anykernel.sh
+        zip -r9 ../mido-nethunter-LOS21-FIXED.zip * -x .git/*
         cd ..
         ls -lh *.zip
-        unzip -l *.zip | head -n 50
     - uses: actions/upload-artifact@v4
       with:
-        name: mido-nethunter-FLASHABLE
-        path: "*-FLASHABLE.zip"
+        name: mido-nethunter-FIXED
+        path: "*-FIXED.zip"
