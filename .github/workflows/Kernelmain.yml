@@ -1,4 +1,4 @@
-name: Build mido nethunter 4.9
+name: Build mido nethunter 4.9 v4
 on: [workflow_dispatch]
 jobs:
   build:
@@ -7,38 +7,44 @@ jobs:
     - uses: actions/checkout@v4
       with:
         submodules: false
-    - name: Clean and deps
+    - name: Deps
       run: |
         rm -rf builder .git/modules 2>/dev/null; rm -f .gitmodules || true
-        sudo apt update
-        sudo apt install -y bc bison flex libssl-dev libelf-dev build-essential python-is-python3 libncurses-dev
-    - name: Get Clang
+        sudo apt update && sudo apt install -y bc bison flex libssl-dev libelf-dev build-essential python-is-python3
+    - name: Clang
       run: |
         mkdir clang && cd clang
         curl -L -o c.tar.gz https://github.com/ZyCromerZ/Clang/releases/download/16.0.6-20260807-release/Clang-16.0.6-20260807.tar.gz
         tar -xzf c.tar.gz
         echo "$PWD/bin" >> $GITHUB_PATH
-        cd ..
-    - name: Build
+    - name: Build kernel
       run: |
         export ARCH=arm64
         export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
-        echo "=== defconfigs ==="; ls arch/arm64/configs/ | grep -i mido
         DEF=$(ls arch/arm64/configs/*mido* | head -n1 | xargs basename)
-        echo "Using $DEF"
+        echo "DEF=$DEF"
         make $DEF
-        make -j$(nproc) Image.gz dtbs 2>&1 | tail -n 100
-        ls -lh arch/arm64/boot/Image.gz || true
-    - name: Pack AnyKernel3
-      if: always()
+        make -j$(nproc) Image.gz dtbs || make -j$(nproc) Image.gz-dtb
+        ls -lh arch/arm64/boot/
+    - name: Make REAL flashable zip
       run: |
-        git clone https://github.com/osm0sis/AnyKernel3.git AK3
-        cp arch/arm64/boot/Image.gz AK3/ 2>/dev/null || true
-        cp arch/arm64/boot/dts/qcom/*.dtb AK3/ 2>/dev/null || true
-        cd AK3; zip -r9 ../mido-nethunter-LOS21-rtl8188eu.zip *; cd ..
-        ls -lh *.zip || true
+        git clone https://github.com/osm0sis/AnyKernel3.git AnyKernel3 --depth=1
+        # cari image yang bener
+        KIMG=$(find arch/arm64/boot -name "Image.gz*" | head -n1)
+        echo "Found $KIMG"
+        ls -lh $KIMG
+        cp $KIMG AnyKernel3/
+        # kalau Image.gz-dtb, rename jadi Image.gz
+        cd AnyKernel3
+        if [ -f Image.gz-dtb ]; then mv Image.gz-dtb Image.gz; fi
+        if [ -f Image.gz-dtb ]; then mv Image.gz-dtb Image.gz; fi
+        # rename biar OrangeFox kenal
+        ls -lh
+        zip -r9 ../mido-nethunter-4.9-LOS21-FLASHABLE.zip * -x .git/*
+        cd ..
+        ls -lh *.zip
+        unzip -l *.zip | head -n 50
     - uses: actions/upload-artifact@v4
-      if: always()
       with:
-        name: mido-nethunter-4.9
-        path: "*.zip"
+        name: mido-nethunter-FLASHABLE
+        path: "*-FLASHABLE.zip"
