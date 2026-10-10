@@ -1,4 +1,4 @@
-name: Build mido nethunter 4.9
+ name: Build mido nethunter 4.9
 on: [workflow_dispatch]
 jobs:
   build:
@@ -7,41 +7,40 @@ jobs:
     - uses: actions/checkout@v4
       with:
         submodules: false
-    - name: Clean bad submodule
+    - name: Clean repo
       run: |
-        rm -rf .git/modules/builder || true
-        git rm -f builder || true
-        rm -rf builder || true
-        rm -f .gitmodules || true
+        rm -rf builder .git/modules/builder .gitmodules || true
     - name: Install deps
       run: |
         sudo apt update
-        sudo apt install -y bc cpio flex bison libssl-dev python-is-python3 zstd wget git zip
-    - name: Get Clang
+        sudo apt install -y bc cpio flex bison libssl-dev python-is-python3 libelf-dev build-essential
+    - name: Get ZyC Clang 16
       run: |
-        mkdir -p clang
-        cd clang
-        wget -q https://github.com/Neutron-Toolchains/antman/releases/download/230323/neutron-clang-230323.tar.zst -O clang.tar.zst
-        tar -I zstd -xf clang.tar.zst
+        mkdir clang && cd clang
+        curl -L -o clang.tar.gz https://github.com/ZyCromerZ/Clang/releases/download/16.0.6-20260807-release/Clang-16.0.6-20260807.tar.gz
+        tar -xzf clang.tar.gz
         echo "$(pwd)/bin" >> $GITHUB_PATH
         cd ..
-        ls clang/bin/
+        ls clang/bin/clang -l
     - name: Get AnyKernel3
-      run: |
-        git clone https://github.com/osm0sis/AnyKernel3.git builder
-    - name: Build
+      run: git clone https://github.com/osm0sis/AnyKernel3.git builder
+    - name: Build kernel
       run: |
         export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
         export ARCH=arm64
         export SUBARCH=arm64
+        export KBUILD_BUILD_USER=builder
+        export KBUILD_BUILD_HOST=mido
         clang --version
-        ls -la
         chmod +x build.sh
-        bash build.sh mido
-    - name: Upload
+        ./build.sh mido
+    - name: Upload zip
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: mido-nethunter-4.9
         path: |
-          out/*.zip
           *.zip
+          out/*.zip
+          builder/*.zip
+          build.log
