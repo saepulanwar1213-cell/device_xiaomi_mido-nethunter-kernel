@@ -5,42 +5,35 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
-      with:
-        submodules: false
-    - name: Clean repo
-      run: |
-        rm -rf builder .git/modules/builder .gitmodules || true
     - name: Install deps
-      run: |
-        sudo apt update
-        sudo apt install -y bc cpio flex bison libssl-dev python-is-python3 libelf-dev build-essential
-    - name: Get ZyC Clang 16
+      run: sudo apt update && sudo apt install -y bc bison flex libssl-dev libelf-dev build-essential python-is-python3
+    - name: Get Clang 16
       run: |
         mkdir clang && cd clang
         curl -L -o clang.tar.gz https://github.com/ZyCromerZ/Clang/releases/download/16.0.6-20260807-release/Clang-16.0.6-20260807.tar.gz
         tar -xzf clang.tar.gz
-        echo "$(pwd)/bin" >> $GITHUB_PATH
+        echo "$PWD/bin" >> $GITHUB_PATH
         cd ..
-        ls clang/bin/clang -l
-    - name: Get AnyKernel3
-      run: git clone https://github.com/osm0sis/AnyKernel3.git builder
-    - name: Build kernel
+    - name: Build direct make
       run: |
-        export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
         export ARCH=arm64
-        export SUBARCH=arm64
-        export KBUILD_BUILD_USER=builder
-        export KBUILD_BUILD_HOST=mido
-        clang --version
-        chmod +x build.sh
-        ./build.sh mido
-    - name: Upload zip
-      if: always()
-      uses: actions/upload-artifact@v4
+        export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
+        make mido_defconfig
+        # enable rtl8188eu and nethunter configs
+        ./scripts/config --enable CONFIG_RTL8188EU || true
+        ./scripts/config --enable CONFIG_WLAN || true
+        make -j$(nproc) Image.gz dtbs
+        ls arch/arm64/boot/
+    - name: Make AnyKernel3 zip
+      run: |
+        git clone https://github.com/osm0sis/AnyKernel3.git AnyKernel
+        cp arch/arm64/boot/Image.gz AnyKernel/
+        cp arch/arm64/boot/dts/qcom/msm8953*.dtb AnyKernel/ 2>/dev/null || cp arch/arm64/boot/dts/*.dtb AnyKernel/ 2>/dev/null || true
+        cd AnyKernel
+        zip -r9 ../mido-nethunter-4.9-LOS21-rtl8188eu.zip *
+        cd ..
+        ls -lh *.zip
+    - uses: actions/upload-artifact@v4
       with:
         name: mido-nethunter-4.9
-        path: |
-          *.zip
-          out/*.zip
-          builder/*.zip
-          build.log
+        path: "*.zip"
