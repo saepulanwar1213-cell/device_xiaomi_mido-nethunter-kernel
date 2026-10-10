@@ -5,35 +5,40 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
-    - name: Install deps
-      run: sudo apt update && sudo apt install -y bc bison flex libssl-dev libelf-dev build-essential python-is-python3
-    - name: Get Clang 16
+      with:
+        submodules: false
+    - name: Clean and deps
+      run: |
+        rm -rf builder .git/modules 2>/dev/null; rm -f .gitmodules || true
+        sudo apt update
+        sudo apt install -y bc bison flex libssl-dev libelf-dev build-essential python-is-python3 libncurses-dev
+    - name: Get Clang
       run: |
         mkdir clang && cd clang
-        curl -L -o clang.tar.gz https://github.com/ZyCromerZ/Clang/releases/download/16.0.6-20260807-release/Clang-16.0.6-20260807.tar.gz
-        tar -xzf clang.tar.gz
+        curl -L -o c.tar.gz https://github.com/ZyCromerZ/Clang/releases/download/16.0.6-20260807-release/Clang-16.0.6-20260807.tar.gz
+        tar -xzf c.tar.gz
         echo "$PWD/bin" >> $GITHUB_PATH
         cd ..
-    - name: Build direct make
+    - name: Build
       run: |
         export ARCH=arm64
         export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
-        make mido_defconfig
-        # enable rtl8188eu and nethunter configs
-        ./scripts/config --enable CONFIG_RTL8188EU || true
-        ./scripts/config --enable CONFIG_WLAN || true
-        make -j$(nproc) Image.gz dtbs
-        ls arch/arm64/boot/
-    - name: Make AnyKernel3 zip
+        echo "=== defconfigs ==="; ls arch/arm64/configs/ | grep -i mido
+        DEF=$(ls arch/arm64/configs/*mido* | head -n1 | xargs basename)
+        echo "Using $DEF"
+        make $DEF
+        make -j$(nproc) Image.gz dtbs 2>&1 | tail -n 100
+        ls -lh arch/arm64/boot/Image.gz || true
+    - name: Pack AnyKernel3
+      if: always()
       run: |
-        git clone https://github.com/osm0sis/AnyKernel3.git AnyKernel
-        cp arch/arm64/boot/Image.gz AnyKernel/
-        cp arch/arm64/boot/dts/qcom/msm8953*.dtb AnyKernel/ 2>/dev/null || cp arch/arm64/boot/dts/*.dtb AnyKernel/ 2>/dev/null || true
-        cd AnyKernel
-        zip -r9 ../mido-nethunter-4.9-LOS21-rtl8188eu.zip *
-        cd ..
-        ls -lh *.zip
+        git clone https://github.com/osm0sis/AnyKernel3.git AK3
+        cp arch/arm64/boot/Image.gz AK3/ 2>/dev/null || true
+        cp arch/arm64/boot/dts/qcom/*.dtb AK3/ 2>/dev/null || true
+        cd AK3; zip -r9 ../mido-nethunter-LOS21-rtl8188eu.zip *; cd ..
+        ls -lh *.zip || true
     - uses: actions/upload-artifact@v4
+      if: always()
       with:
         name: mido-nethunter-4.9
         path: "*.zip"
