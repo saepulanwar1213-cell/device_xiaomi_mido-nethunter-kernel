@@ -1,0 +1,29 @@
+name: Build mido nethunter 4.9
+on: [workflow_dispatch]
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+    - name: Install deps
+      run: |
+        sudo apt update
+        sudo apt install -y bc cpio flex bison libssl-dev
+    - name: Get Clang
+      run: |
+        mkdir clang && cd clang
+        wget https://github.com/Neutron-Toolchains/antman/releases/download/230323/neutron-clang-230323.tar.zst -O clang.tar.zst
+        tar --use-compress-program=unzstd -xf clang.tar.zst
+        echo "$(pwd)/bin" >> $GITHUB_PATH
+        cd ..
+    - name: Build
+      run: |
+        chmod +x build.sh
+        ./build.sh mido
+    - name: Upload
+      uses: actions/upload-artifact@v4
+      with:
+        name: mido-nethunter-4.9
+        path: out/*.zip
