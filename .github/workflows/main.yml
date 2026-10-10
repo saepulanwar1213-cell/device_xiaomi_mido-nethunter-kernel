@@ -6,24 +6,38 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        submodules: true
+        submodules: false
+    - name: Clean bad submodule
+      run: |
+        rm -rf .git/modules/builder
+        git rm -f builder || true
+        rm -rf builder
+        rm -f .gitmodules || true
     - name: Install deps
       run: |
         sudo apt update
-        sudo apt install -y bc cpio flex bison libssl-dev
+        sudo apt install -y bc cpio flex bison libssl-dev binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu
     - name: Get Clang
       run: |
-        mkdir clang && cd clang
-        wget https://github.com/Neutron-Toolchains/antman/releases/download/230323/neutron-clang-230323.tar.zst -O clang.tar.zst
+        mkdir -p clang && cd clang
+        wget -q https://github.com/Neutron-Toolchains/antman/releases/download/230323/neutron-clang-230323.tar.zst -O clang.tar.zst
         tar --use-compress-program=unzstd -xf clang.tar.zst
         echo "$(pwd)/bin" >> $GITHUB_PATH
         cd ..
+        clang/bin/clang --version
+    - name: Get AnyKernel3
+      run: |
+        git clone https://github.com/osm0sis/AnyKernel3.git builder
     - name: Build
       run: |
-        chmod +x build.sh
-        ./build.sh mido
+        chmod +x build.sh || chmod +x ./build/*.sh || true
+        ls -la
+        ./build.sh mido || bash build.sh mido
     - name: Upload
       uses: actions/upload-artifact@v4
       with:
         name: mido-nethunter-4.9
-        path: out/*.zip
+        path: |
+          out/*.zip
+          *.zip
+          builder/*.zip
