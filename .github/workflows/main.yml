@@ -9,30 +9,35 @@ jobs:
         submodules: false
     - name: Clean bad submodule
       run: |
-        rm -rf .git/modules/builder
+        rm -rf .git/modules/builder || true
         git rm -f builder || true
-        rm -rf builder
+        rm -rf builder || true
         rm -f .gitmodules || true
     - name: Install deps
       run: |
         sudo apt update
-        sudo apt install -y bc cpio flex bison libssl-dev binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu
+        sudo apt install -y bc cpio flex bison libssl-dev python-is-python3 zstd wget git zip
     - name: Get Clang
       run: |
-        mkdir -p clang && cd clang
+        mkdir -p clang
+        cd clang
         wget -q https://github.com/Neutron-Toolchains/antman/releases/download/230323/neutron-clang-230323.tar.zst -O clang.tar.zst
-        tar --use-compress-program=unzstd -xf clang.tar.zst
+        tar -I zstd -xf clang.tar.zst
         echo "$(pwd)/bin" >> $GITHUB_PATH
         cd ..
-        clang/bin/clang --version
+        ls clang/bin/
     - name: Get AnyKernel3
       run: |
         git clone https://github.com/osm0sis/AnyKernel3.git builder
     - name: Build
       run: |
-        chmod +x build.sh || chmod +x ./build/*.sh || true
+        export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
+        export ARCH=arm64
+        export SUBARCH=arm64
+        clang --version
         ls -la
-        ./build.sh mido || bash build.sh mido
+        chmod +x build.sh
+        bash build.sh mido
     - name: Upload
       uses: actions/upload-artifact@v4
       with:
@@ -40,4 +45,3 @@ jobs:
         path: |
           out/*.zip
           *.zip
-          builder/*.zip
